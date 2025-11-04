@@ -6,6 +6,7 @@ export enum Category {
   Papas_Locas = 'Papas Locas',
   Sandwiches = 'Sandwiches',
   Alternativas = 'Alternativas',
+  Bebidas = 'Bebidas',
   Adicionales = 'Adicionales',
 }
 
@@ -40,4 +41,5 @@ export interface CartItem {
     removed: string[];
     notes: string;
   };
+  drink?: Product; // Optional drink associated with this item
 }

@@ -252,6 +252,22 @@ export const MENU_DATA: Product[] = [
     image: 'https://picsum.photos/id/1078/800/600', category: Category.Alternativas,
     baseIngredients: ['Cebolla Grille', 'Salsas']
   },
+   // Bebidas
+  {
+    id: 46, name: 'Coca-Cola', description: 'Personal 400ml', price: 4000, image: 'https://picsum.photos/id/90/800/600', category: Category.Bebidas
+  },
+  {
+    id: 47, name: 'Jugo de Mora en Agua', description: 'Natural', price: 5000, image: 'https://picsum.photos/id/91/800/600', category: Category.Bebidas
+  },
+  {
+    id: 48, name: 'Jugo de Mora en Leche', description: 'Natural', price: 6000, image: 'https://picsum.photos/id/92/800/600', category: Category.Bebidas
+  },
+  {
+    id: 49, name: 'Limonada Natural', description: 'Refrescante', price: 5000, image: 'https://picsum.photos/id/93/800/600', category: Category.Bebidas
+  },
+  {
+    id: 50, name: 'Cerveza Club Colombia', description: 'Dorada', price: 6000, image: 'https://picsum.photos/id/94/800/600', category: Category.Bebidas
+  },
   // Adicionales
   {
     id: 38, name: 'Pollo Desmechado', description: '', price: 4000, image: 'https://picsum.photos/id/301/800/600', category: Category.Adicionales

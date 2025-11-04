@@ -1,6 +1,6 @@
 import React from 'react';
 import { CartItem } from '../types';
-import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon } from './Icons';
+import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon, DrinkIcon } from './Icons';
 
 interface CartProps {
   isOpen: boolean;
@@ -9,6 +9,8 @@ interface CartProps {
   onUpdateQuantity: (itemId: number, newQuantity: number) => void;
   onRemoveItem: (itemId: number) => void;
   onPlaceOrder: () => void;
+  onAddDrink: (itemId: number) => void;
+  onRemoveDrink: (itemId: number) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -41,7 +43,13 @@ const CustomizationsList: React.FC<{ customizations: CartItem['customizations'] 
 }
 
 
-const CartItemDetails: React.FC<{ item: CartItem, onUpdateQuantity: (id: number, q: number) => void, onRemoveItem: (id: number) => void }> = ({ item, onUpdateQuantity, onRemoveItem }) => (
+const CartItemDetails: React.FC<{ 
+    item: CartItem, 
+    onUpdateQuantity: (id: number, q: number) => void, 
+    onRemoveItem: (id: number) => void,
+    onAddDrink: (itemId: number) => void;
+    onRemoveDrink: (itemId: number) => void;
+}> = ({ item, onUpdateQuantity, onRemoveItem, onAddDrink, onRemoveDrink }) => (
     <div className="flex items-start gap-4 py-4">
         <img src={item.product.image} alt={item.product.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
         <div className="flex-grow">
@@ -51,6 +59,30 @@ const CartItemDetails: React.FC<{ item: CartItem, onUpdateQuantity: (id: number,
                 <p className="text-sm text-brand-orange font-semibold">{formatCurrency(item.variant.price)}</p>
             </div>
             <CustomizationsList customizations={item.customizations} />
+             <div className="mt-2">
+                {item.drink ? (
+                    <div className="flex items-center justify-between text-sm bg-brand-dark p-2 rounded-lg">
+                        <div className="flex items-center gap-2">
+                            <DrinkIcon className="w-5 h-5 text-brand-orange" />
+                            <span className="font-medium text-brand-light">{item.drink.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <span className="text-brand-gray">{formatCurrency(item.drink.price)}</span>
+                           <button onClick={() => onRemoveDrink(item.id)} className="text-brand-gray hover:text-red-500 transition-colors">
+                                <TrashIcon className="w-4 h-4"/>
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={() => onAddDrink(item.id)}
+                        className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-brand-orange/20 text-brand-orange font-bold rounded-lg hover:bg-brand-orange/30 transition-colors duration-300"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        Añadir Bebida
+                    </button>
+                )}
+            </div>
         </div>
         <div className="flex flex-col items-end gap-2 ml-2">
             <div className="flex items-center bg-brand-dark rounded-full">
@@ -64,10 +96,11 @@ const CartItemDetails: React.FC<{ item: CartItem, onUpdateQuantity: (id: number,
 );
 
 
-const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder }) => {
+const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink }) => {
     const subtotal = cartItems.reduce((sum, item) => {
         const addonsPrice = item.customizations.added.reduce((s, ad) => s + ad.price, 0);
-        return sum + (item.variant.price + addonsPrice) * item.quantity;
+        const drinkPrice = item.drink?.price || 0;
+        return sum + (item.variant.price + addonsPrice + drinkPrice) * item.quantity;
     }, 0);
     const total = subtotal;
 
@@ -85,7 +118,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
                             onClick={onClose} 
                             className="px-4 py-2 text-sm font-semibold bg-brand-dark text-brand-orange rounded-full hover:bg-black/20 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-brand-orange focus:ring-offset-2 focus:ring-offset-brand-surface"
                         >
-                            Seguir Pidiendo
+                            Volver al Menú
                         </button>
                     </div>
 
@@ -98,7 +131,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
                     ) : (
                         <div className="flex-grow overflow-y-auto px-6 divide-y divide-brand-dark">
                            {cartItems.map(item => (
-                               <CartItemDetails key={item.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} />
+                               <CartItemDetails key={item.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} onAddDrink={onAddDrink} onRemoveDrink={onRemoveDrink} />
                            ))}
                         </div>
                     )}

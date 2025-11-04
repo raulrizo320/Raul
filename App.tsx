@@ -4,7 +4,8 @@ import { MENU_DATA } from './constants';
 import ProductCard from './components/ProductCard';
 import Cart from './components/Cart';
 import CustomizationModal from './components/CustomizationModal';
-import { CartIcon, ChevronDownIcon } from './components/Icons';
+import DrinkModal from './components/DrinkModal';
+import { CartIcon, ChevronDownIcon, ShieldCheckIcon } from './components/Icons';
 
 // Helper to compare customizations
 const areCustomizationsEqual = (custA: CartItem['customizations'], custB: CartItem['customizations']) => {
@@ -14,11 +15,35 @@ const areCustomizationsEqual = (custA: CartItem['customizations'], custB: CartIt
     return true;
 };
 
+const Footer: React.FC = () => {
+    return (
+        <footer className="bg-brand-dark py-8 mt-6">
+            <div className="container mx-auto px-4 text-center text-brand-gray">
+                <div className="flex justify-center mb-3">
+                    <ShieldCheckIcon className="w-12 h-12 text-brand-orange" />
+                </div>
+                <h3 className="text-2xl font-display font-bold text-brand-light mb-2">
+                    Preparado al Momento, Para Ti
+                </h3>
+                <p className="max-w-2xl mx-auto">
+                    Preparamos tu pedido con rapidez porque sabemos que el hambre no espera.
+                    Todos nuestros productos son frescos y se preparan al instante para garantizar el mejor sabor.
+                </p>
+                <p className="mt-2 font-semibold text-brand-light/90">
+                    En Alex Burger, la calidad y tu satisfacción son nuestro ingrediente principal.
+                </p>
+            </div>
+        </footer>
+    );
+};
+
+
 const App: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState<Category>(Category.Hamburguesas);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [customizingProduct, setCustomizingProduct] = useState<{ product: Product, variant: { label: string; price: number } } | null>(null);
+    const [addingDrinkTo, setAddingDrinkTo] = useState<number | null>(null); // CartItem ID
     const [isCategoryNavOpen, setIsCategoryNavOpen] = useState(false);
     const navTimerRef = useRef<number | null>(null);
 
@@ -47,6 +72,10 @@ const App: React.FC = () => {
     const adicionales = useMemo(() => {
         return MENU_DATA.filter(p => p.category === Category.Adicionales) as Adicional[];
     }, []);
+
+    const bebidas = useMemo(() => {
+        return MENU_DATA.filter(p => p.category === Category.Bebidas);
+    }, []);
     
     const handleOpenCustomizeModal = (product: Product, variant: { label: string; price: number }) => {
         setCustomizingProduct({ product, variant });
@@ -56,7 +85,8 @@ const App: React.FC = () => {
         const existingItemIndex = cart.findIndex(item => 
             item.product.id === newItem.product.id &&
             item.variant.label === newItem.variant.label &&
-            areCustomizationsEqual(item.customizations, newItem.customizations)
+            areCustomizationsEqual(item.customizations, newItem.customizations) &&
+            !item.drink // Don't merge if it has a drink already
         );
 
         if (existingItemIndex > -1) {
@@ -81,6 +111,25 @@ const App: React.FC = () => {
         setCart(cart.filter(item => item.id !== itemId));
     };
 
+    const handleAddDrinkToItem = (drink: Product) => {
+        if (addingDrinkTo === null) return;
+        setCart(cart.map(item => 
+            item.id === addingDrinkTo ? { ...item, drink } : item
+        ));
+        setAddingDrinkTo(null);
+    };
+
+    const handleRemoveDrinkFromItem = (itemId: number) => {
+         setCart(cart.map(item => {
+            if (item.id === itemId) {
+                const { drink, ...rest } = item;
+                return rest;
+            }
+            return item;
+        }));
+    };
+
+
     const cartItemCount = useMemo(() => {
         return cart.reduce((total, item) => total + item.quantity, 0);
     }, [cart]);
@@ -88,7 +137,8 @@ const App: React.FC = () => {
     const cartTotal = useMemo(() => {
         return cart.reduce((total, item) => {
             const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
-            const itemTotal = (item.variant.price + addonsTotal) * item.quantity;
+            const drinkTotal = item.drink?.price || 0;
+            const itemTotal = (item.variant.price + addonsTotal + drinkTotal) * item.quantity;
             return total + itemTotal;
         }, 0);
     }, [cart]);
@@ -107,9 +157,14 @@ const App: React.FC = () => {
         cart.forEach(item => {
             const variantLabel = item.variant.label !== item.product.name ? ` (${item.variant.label})` : '';
             const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
-            const itemPrice = item.variant.price + addonsTotal;
+            const drinkPrice = item.drink?.price || 0;
+            const itemPrice = item.variant.price + addonsTotal + drinkPrice;
 
             message += `*${item.quantity}x ${item.product.name}${variantLabel}* (${formatCurrency(itemPrice * item.quantity)})\n`;
+            
+            if (item.drink) {
+                 message += `  Bebida: ${item.drink.name}\n`;
+            }
 
             if (item.customizations.added.length > 0) {
                 message += `  Adiciones: ${item.customizations.added.map(a => a.name).join(', ')}\n`;
@@ -176,6 +231,8 @@ const App: React.FC = () => {
                 </div>
             </main>
 
+            <Footer />
+
             {customizingProduct && (
                  <CustomizationModal
                     product={customizingProduct.product}
@@ -186,6 +243,15 @@ const App: React.FC = () => {
                 />
             )}
 
+             {addingDrinkTo !== null && (
+                <DrinkModal
+                    isOpen={addingDrinkTo !== null}
+                    onClose={() => setAddingDrinkTo(null)}
+                    drinks={bebidas}
+                    onSelectDrink={handleAddDrinkToItem}
+                />
+            )}
+
             <Cart 
                 isOpen={isCartOpen} 
                 onClose={() => setIsCartOpen(false)} 
@@ -193,6 +259,8 @@ const App: React.FC = () => {
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveFromCart}
                 onPlaceOrder={handlePlaceOrder}
+                onAddDrink={(itemId) => setAddingDrinkTo(itemId)}
+                onRemoveDrink={handleRemoveDrinkFromItem}
             />
             
             {cartItemCount > 0 && (
