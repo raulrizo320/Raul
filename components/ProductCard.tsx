@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Product } from '../types';
+import { Product, Category } from '../types';
 import { PlusIcon, ChevronDownIcon } from './Icons';
 
 interface ProductCardProps {
   product: Product;
   onCustomize: (product: Product, variant: { label: string; price: number }) => void;
+  onAddToCartDirectly: (product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onCustomize }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, onCustomize, onAddToCartDirectly }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const formatCurrency = (value: number) => {
@@ -56,7 +57,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCustomize }) => {
                     </>
                 ) : (
                      <button
-                        onClick={() => onCustomize(product, { label: product.name, price: product.price })}
+                        onClick={() => {
+                            if (product.category === Category.Bebidas || product.category === Category.Adicionales) {
+                                onAddToCartDirectly(product);
+                            } else {
+                                onCustomize(product, { label: product.name, price: product.price });
+                            }
+                        }}
                         className="w-full flex items-center justify-between py-3 px-4 bg-brand-orange text-brand-dark font-bold rounded-xl hover:bg-opacity-90 transition-colors duration-300"
                     >
                         <span>

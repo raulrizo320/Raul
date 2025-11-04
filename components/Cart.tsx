@@ -1,6 +1,6 @@
 import React from 'react';
-import { CartItem } from '../types';
-import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon, DrinkIcon } from './Icons';
+import { CartItem, Category, Product } from '../types';
+import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon, DrinkIcon, FriesIcon } from './Icons';
 
 interface CartProps {
   isOpen: boolean;
@@ -11,6 +11,8 @@ interface CartProps {
   onPlaceOrder: () => void;
   onAddDrink: (itemId: number) => void;
   onRemoveDrink: (itemId: number) => void;
+  onAddFries: (itemId: number) => void;
+  onRemoveFries: (itemId: number) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -19,6 +21,31 @@ const formatCurrency = (value: number) => {
         currency: 'COP',
         minimumFractionDigits: 0,
     }).format(value);
+};
+
+const singularizeCategory = (category: string): string => {
+    if (category === 'Papas Locas') return 'Papas Locas';
+    if (category === 'Sandwiches') return 'Sandwich';
+    if (category.endsWith('es')) {
+        return category.slice(0, -2);
+    }
+    if (category.endsWith('s')) {
+        return category.slice(0, -1);
+    }
+    return category;
+}
+
+const getFullProductName = (item: CartItem): string => {
+    const categorySingular = singularizeCategory(item.product.category);
+    // For drinks and additions, just use their name.
+    if (item.product.category === Category.Bebidas || item.product.category === Category.Adicionales) {
+        return item.product.name;
+    }
+    // If name already contains category (e.g., "Sandwich Ranchero"), don't prepend.
+    if (item.product.name.toLowerCase().includes(categorySingular.toLowerCase())) {
+        return item.product.name;
+    }
+    return `${categorySingular} ${item.product.name}`;
 };
 
 const CustomizationsList: React.FC<{ customizations: CartItem['customizations'] }> = ({ customizations }) => {
@@ -47,42 +74,73 @@ const CartItemDetails: React.FC<{
     item: CartItem, 
     onUpdateQuantity: (id: number, q: number) => void, 
     onRemoveItem: (id: number) => void,
-    onAddDrink: (itemId: number) => void;
-    onRemoveDrink: (itemId: number) => void;
-}> = ({ item, onUpdateQuantity, onRemoveItem, onAddDrink, onRemoveDrink }) => (
+    onAddDrink: (itemId: number) => void,
+    onRemoveDrink: (itemId: number) => void,
+    onAddFries: (itemId: number) => void,
+    onRemoveFries: (itemId: number) => void,
+}> = ({ item, onUpdateQuantity, onRemoveItem, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries }) => {
+    const isWithFries = item.product.secondaryPrice && item.variant.label === item.product.secondaryPriceLabel;
+    const isWithoutFries = item.product.secondaryPrice && item.variant.label === item.product.priceLabel;
+    const canHaveCombos = item.product.category !== Category.Bebidas && item.product.category !== Category.Adicionales;
+    const friesPriceDifference = (item.product.secondaryPrice && item.product.price) ? item.product.secondaryPrice - item.product.price : 0;
+    
+    return (
     <div className="flex items-start gap-4 py-4">
         <img src={item.product.image} alt={item.product.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
         <div className="flex-grow">
-            <h4 className="font-bold text-brand-light">{item.product.name}</h4>
+            <h4 className="font-bold text-brand-light">{getFullProductName(item)}</h4>
             <div className="flex justify-between items-baseline">
-                {item.variant.label && <p className="text-sm text-brand-gray capitalize">{item.variant.label}</p>}
+                <p className="text-sm text-brand-gray capitalize">{item.variant.label}</p>
                 <p className="text-sm text-brand-orange font-semibold">{formatCurrency(item.variant.price)}</p>
             </div>
+            
             <CustomizationsList customizations={item.customizations} />
-             <div className="mt-2">
-                {item.drink ? (
-                    <div className="flex items-center justify-between text-sm bg-brand-dark p-2 rounded-lg">
+
+            {item.comboDrink && (
+                <div className="text-xs text-brand-gray mt-1 pl-2 border-l-2 border-brand-orange/50">
+                    <div className="flex justify-between items-center">
+                        <span>✓ {item.comboDrink.name}</span>
                         <div className="flex items-center gap-2">
-                            <DrinkIcon className="w-5 h-5 text-brand-orange" />
-                            <span className="font-medium text-brand-light">{item.drink.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                           <span className="text-brand-gray">{formatCurrency(item.drink.price)}</span>
-                           <button onClick={() => onRemoveDrink(item.id)} className="text-brand-gray hover:text-red-500 transition-colors">
-                                <TrashIcon className="w-4 h-4"/>
+                            <span>{formatCurrency(item.comboDrink.price)}</span>
+                            <button onClick={() => onRemoveDrink(item.id)} className="text-red-400 hover:text-red-300">
+                                <CloseIcon className="w-3 h-3"/>
                             </button>
                         </div>
                     </div>
-                ) : (
-                    <button 
-                        onClick={() => onAddDrink(item.id)}
-                        className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-brand-orange/20 text-brand-orange font-bold rounded-lg hover:bg-brand-orange/30 transition-colors duration-300"
-                    >
-                        <PlusIcon className="w-4 h-4" />
-                        Añadir Bebida
-                    </button>
-                )}
-            </div>
+                </div>
+            )}
+            
+            {canHaveCombos && (
+                <div className="mt-2 flex flex-col gap-2">
+                    {isWithoutFries && (
+                         <button 
+                            onClick={() => onAddFries(item.id)}
+                            className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-green-500/20 text-green-400 font-bold rounded-lg hover:bg-green-500/30 transition-colors duration-300"
+                        >
+                            <FriesIcon className="w-4 h-4" />
+                            Añadir Papas (+{formatCurrency(friesPriceDifference)})
+                        </button>
+                    )}
+                     {isWithFries && (
+                        <div className="w-full flex items-center justify-between py-1.5 px-3 text-xs bg-green-500/10 text-green-400 font-bold rounded-lg">
+                            <span>✓ Con Papas</span>
+                            <button onClick={() => onRemoveFries(item.id)} className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold">
+                                <CloseIcon className="w-3 h-3" />
+                                <span>Quitar</span>
+                            </button>
+                        </div>
+                    )}
+                    {!item.comboDrink && (
+                        <button 
+                            onClick={() => onAddDrink(item.id)}
+                            className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-brand-orange/20 text-brand-orange font-bold rounded-lg hover:bg-brand-orange/30 transition-colors duration-300"
+                        >
+                            <DrinkIcon className="w-4 h-4" />
+                            Añadir Bebida
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
         <div className="flex flex-col items-end gap-2 ml-2">
             <div className="flex items-center bg-brand-dark rounded-full">
@@ -93,13 +151,13 @@ const CartItemDetails: React.FC<{
             <button onClick={() => onRemoveItem(item.id)} className="text-brand-gray hover:text-brand-orange"><TrashIcon className="w-5 h-5"/></button>
         </div>
     </div>
-);
+)};
 
 
-const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink }) => {
+const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries }) => {
     const subtotal = cartItems.reduce((sum, item) => {
         const addonsPrice = item.customizations.added.reduce((s, ad) => s + ad.price, 0);
-        const drinkPrice = item.drink?.price || 0;
+        const drinkPrice = item.comboDrink ? item.comboDrink.price : 0;
         return sum + (item.variant.price + addonsPrice + drinkPrice) * item.quantity;
     }, 0);
     const total = subtotal;
@@ -131,7 +189,16 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
                     ) : (
                         <div className="flex-grow overflow-y-auto px-6 divide-y divide-brand-dark">
                            {cartItems.map(item => (
-                               <CartItemDetails key={item.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} onAddDrink={onAddDrink} onRemoveDrink={onRemoveDrink} />
+                               <CartItemDetails 
+                                 key={item.id} 
+                                 item={item} 
+                                 onUpdateQuantity={onUpdateQuantity} 
+                                 onRemoveItem={onRemoveItem} 
+                                 onAddDrink={onAddDrink} 
+                                 onRemoveDrink={onRemoveDrink}
+                                 onAddFries={onAddFries}
+                                 onRemoveFries={onRemoveFries}
+                                />
                            ))}
                         </div>
                     )}

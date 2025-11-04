@@ -43,7 +43,7 @@ const App: React.FC = () => {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [customizingProduct, setCustomizingProduct] = useState<{ product: Product, variant: { label: string; price: number } } | null>(null);
-    const [addingDrinkTo, setAddingDrinkTo] = useState<number | null>(null); // CartItem ID
+    const [addingDrinkTo, setAddingDrinkTo] = useState<number | null>(null);
     const [isCategoryNavOpen, setIsCategoryNavOpen] = useState(false);
     const navTimerRef = useRef<number | null>(null);
 
@@ -73,7 +73,7 @@ const App: React.FC = () => {
         return MENU_DATA.filter(p => p.category === Category.Adicionales) as Adicional[];
     }, []);
 
-    const bebidas = useMemo(() => {
+    const drinks = useMemo(() => {
         return MENU_DATA.filter(p => p.category === Category.Bebidas);
     }, []);
     
@@ -86,7 +86,7 @@ const App: React.FC = () => {
             item.product.id === newItem.product.id &&
             item.variant.label === newItem.variant.label &&
             areCustomizationsEqual(item.customizations, newItem.customizations) &&
-            !item.drink // Don't merge if it has a drink already
+            !item.comboDrink
         );
 
         if (existingItemIndex > -1) {
@@ -94,6 +94,36 @@ const App: React.FC = () => {
             updatedCart[existingItemIndex].quantity++;
             setCart(updatedCart);
         } else {
+            setCart(prevCart => [...prevCart, newItem]);
+        }
+        setIsCartOpen(true);
+    };
+
+    const handleAddToCartDirectly = (product: Product) => {
+        const existingItemIndex = cart.findIndex(item => 
+            item.product.id === product.id &&
+            item.customizations.added.length === 0 &&
+            item.customizations.removed.length === 0 &&
+            item.customizations.notes.trim() === '' &&
+            !item.comboDrink
+        );
+    
+        if (existingItemIndex > -1) {
+            const updatedCart = [...cart];
+            updatedCart[existingItemIndex].quantity++;
+            setCart(updatedCart);
+        } else {
+            const newItem: CartItem = {
+                id: Date.now(),
+                product,
+                quantity: 1,
+                variant: { label: product.name, price: product.price },
+                customizations: {
+                    added: [],
+                    removed: [],
+                    notes: '',
+                }
+            };
             setCart(prevCart => [...prevCart, newItem]);
         }
         setIsCartOpen(true);
@@ -110,25 +140,56 @@ const App: React.FC = () => {
     const handleRemoveFromCart = (itemId: number) => {
         setCart(cart.filter(item => item.id !== itemId));
     };
+    
+    const handleOpenDrinkModal = (itemId: number) => {
+        setAddingDrinkTo(itemId);
+    };
 
-    const handleAddDrinkToItem = (drink: Product) => {
-        if (addingDrinkTo === null) return;
-        setCart(cart.map(item => 
-            item.id === addingDrinkTo ? { ...item, drink } : item
-        ));
+    const handleSelectDrink = (drink: Product) => {
+        if (!addingDrinkTo) return;
+        setCart(cart.map(item => item.id === addingDrinkTo ? { ...item, comboDrink: drink } : item));
         setAddingDrinkTo(null);
     };
 
-    const handleRemoveDrinkFromItem = (itemId: number) => {
-         setCart(cart.map(item => {
+    const handleRemoveDrink = (itemId: number) => {
+        setCart(cart.map(item => {
             if (item.id === itemId) {
-                const { drink, ...rest } = item;
+                const { comboDrink, ...rest } = item;
                 return rest;
             }
             return item;
         }));
     };
 
+    const handleAddFriesToCartItem = (itemId: number) => {
+        setCart(cart.map(item => {
+            if (item.id === itemId && item.product.secondaryPrice && item.product.secondaryPriceLabel) {
+                return {
+                    ...item,
+                    variant: {
+                        label: item.product.secondaryPriceLabel,
+                        price: item.product.secondaryPrice,
+                    }
+                };
+            }
+            return item;
+        }));
+    };
+
+    const handleRemoveFriesFromCartItem = (itemId: number) => {
+        setCart(cart.map(item => {
+            if (item.id === itemId && item.product.priceLabel) {
+                return {
+                    ...item,
+                    variant: {
+                        label: item.product.priceLabel,
+                        price: item.product.price,
+                    }
+                };
+            }
+            return item;
+        }));
+    };
 
     const cartItemCount = useMemo(() => {
         return cart.reduce((total, item) => total + item.quantity, 0);
@@ -137,7 +198,7 @@ const App: React.FC = () => {
     const cartTotal = useMemo(() => {
         return cart.reduce((total, item) => {
             const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
-            const drinkTotal = item.drink?.price || 0;
+            const drinkTotal = item.comboDrink ? item.comboDrink.price : 0;
             const itemTotal = (item.variant.price + addonsTotal + drinkTotal) * item.quantity;
             return total + itemTotal;
         }, 0);
@@ -157,20 +218,19 @@ const App: React.FC = () => {
         cart.forEach(item => {
             const variantLabel = item.variant.label !== item.product.name ? ` (${item.variant.label})` : '';
             const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
-            const drinkPrice = item.drink?.price || 0;
-            const itemPrice = item.variant.price + addonsTotal + drinkPrice;
+            const drinkTotal = item.comboDrink ? item.comboDrink.price : 0;
+            const itemPrice = item.variant.price + addonsTotal + drinkTotal;
 
             message += `*${item.quantity}x ${item.product.name}${variantLabel}* (${formatCurrency(itemPrice * item.quantity)})\n`;
-            
-            if (item.drink) {
-                 message += `  Bebida: ${item.drink.name}\n`;
-            }
 
             if (item.customizations.added.length > 0) {
                 message += `  Adiciones: ${item.customizations.added.map(a => a.name).join(', ')}\n`;
             }
             if (item.customizations.removed.length > 0) {
                 message += `  Sin: ${item.customizations.removed.join(', ')}\n`;
+            }
+            if (item.comboDrink) {
+                message += `  Bebida: ${item.comboDrink.name}\n`;
             }
             if (item.customizations.notes) {
                 message += `  Nota: ${item.customizations.notes}\n`;
@@ -185,17 +245,20 @@ const App: React.FC = () => {
     return (
         <div className="min-h-screen bg-brand-dark text-brand-light pb-32">
             <header className="sticky top-0 bg-brand-dark/80 backdrop-blur-md z-30 shadow-lg shadow-black/20">
-                <div className="container mx-auto px-4 pt-4">
+                <div className="container mx-auto px-4 pt-4 pb-2">
                     <h1 className="text-4xl font-display font-extrabold text-brand-orange text-center tracking-tight">
                         ALEX BURGER
                     </h1>
+                     <h2 className="text-xl font-display font-semibold text-brand-light text-center mt-2 uppercase tracking-wider opacity-80">
+                        {activeCategory}
+                    </h2>
                 </div>
                 <div className="text-center">
                     <button
                         onClick={() => setIsCategoryNavOpen(!isCategoryNavOpen)}
                         className="inline-flex items-center gap-2 px-5 py-2 bg-brand-surface rounded-b-xl text-brand-gray hover:text-brand-orange transition-all duration-300 shadow-lg"
                     >
-                        <span className="font-semibold text-sm tracking-wider">MENÚ</span>
+                        <span className="font-semibold text-sm tracking-wider">CAMBIAR MENÚ</span>
                         <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isCategoryNavOpen ? 'rotate-180' : ''}`} />
                     </button>
                 </div>
@@ -226,6 +289,7 @@ const App: React.FC = () => {
                             key={product.id}
                             product={product}
                             onCustomize={handleOpenCustomizeModal}
+                            onAddToCartDirectly={handleAddToCartDirectly}
                         />
                     ))}
                 </div>
@@ -243,14 +307,12 @@ const App: React.FC = () => {
                 />
             )}
 
-             {addingDrinkTo !== null && (
-                <DrinkModal
-                    isOpen={addingDrinkTo !== null}
-                    onClose={() => setAddingDrinkTo(null)}
-                    drinks={bebidas}
-                    onSelectDrink={handleAddDrinkToItem}
-                />
-            )}
+            <DrinkModal
+                isOpen={addingDrinkTo !== null}
+                onClose={() => setAddingDrinkTo(null)}
+                drinks={drinks}
+                onSelectDrink={handleSelectDrink}
+            />
 
             <Cart 
                 isOpen={isCartOpen} 
@@ -259,8 +321,10 @@ const App: React.FC = () => {
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveFromCart}
                 onPlaceOrder={handlePlaceOrder}
-                onAddDrink={(itemId) => setAddingDrinkTo(itemId)}
-                onRemoveDrink={handleRemoveDrinkFromItem}
+                onAddDrink={handleOpenDrinkModal}
+                onRemoveDrink={handleRemoveDrink}
+                onAddFries={handleAddFriesToCartItem}
+                onRemoveFries={handleRemoveFriesFromCartItem}
             />
             
             {cartItemCount > 0 && (

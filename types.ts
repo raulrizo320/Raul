@@ -41,5 +41,5 @@ export interface CartItem {
     removed: string[];
     notes: string;
   };
-  drink?: Product; // Optional drink associated with this item
+  comboDrink?: Product; // The drink added as a combo
 }

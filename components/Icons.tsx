@@ -51,3 +51,9 @@ export const DrinkIcon: React.FC<IconProps> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M.75 3.75l3 3m0 0v11.25A2.25 2.25 0 006 20.25h12a2.25 2.25 0 002.25-2.25V6.75l-3-3m-12.75 0H20.25" />
     </svg>
 );
+
+export const FriesIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 20V10m4 10V4m4 16V10" />
+    </svg>
+);
