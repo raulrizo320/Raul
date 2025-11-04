@@ -1,36 +1,69 @@
-
-import React, { useState, useMemo } from 'react';
-import { Product, Category, CartItem } from './types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Product, Category, CartItem, Adicional } from './types';
 import { MENU_DATA } from './constants';
 import ProductCard from './components/ProductCard';
 import Cart from './components/Cart';
-import { CartIcon } from './components/Icons';
+import CustomizationModal from './components/CustomizationModal';
+import { CartIcon, ChevronDownIcon } from './components/Icons';
+
+// Helper to compare customizations
+const areCustomizationsEqual = (custA: CartItem['customizations'], custB: CartItem['customizations']) => {
+    if (custA.notes !== custB.notes) return false;
+    if (custA.removed.length !== custB.removed.length || !custA.removed.every(item => custB.removed.includes(item))) return false;
+    if (custA.added.length !== custB.added.length || !custA.added.every(item => custB.added.find(bItem => bItem.id === item.id))) return false;
+    return true;
+};
 
 const App: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState<Category>(Category.Hamburguesas);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [customizingProduct, setCustomizingProduct] = useState<{ product: Product, variant: { label: string; price: number } } | null>(null);
+    const [isCategoryNavOpen, setIsCategoryNavOpen] = useState(false);
+    const navTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (isCategoryNavOpen) {
+            if (navTimerRef.current) {
+                clearTimeout(navTimerRef.current);
+            }
+            navTimerRef.current = window.setTimeout(() => {
+                setIsCategoryNavOpen(false);
+            }, 5000); // Auto-hide after 5 seconds
+        }
+
+        return () => {
+            if (navTimerRef.current) {
+                clearTimeout(navTimerRef.current);
+            }
+        };
+    }, [isCategoryNavOpen]);
+
 
     const filteredProducts = useMemo(() => {
         return MENU_DATA.filter(p => p.category === activeCategory);
     }, [activeCategory]);
+
+    const adicionales = useMemo(() => {
+        return MENU_DATA.filter(p => p.category === Category.Adicionales) as Adicional[];
+    }, []);
     
-    const handleAddToCart = (product: Product, variant: { label: string; price: number }) => {
+    const handleOpenCustomizeModal = (product: Product, variant: { label: string; price: number }) => {
+        setCustomizingProduct({ product, variant });
+    };
+
+    const handleAddToCart = (newItem: CartItem) => {
         const existingItemIndex = cart.findIndex(item => 
-            item.product.id === product.id && item.variant.label === variant.label
+            item.product.id === newItem.product.id &&
+            item.variant.label === newItem.variant.label &&
+            areCustomizationsEqual(item.customizations, newItem.customizations)
         );
 
-        if (existingItemIndex !== -1) {
+        if (existingItemIndex > -1) {
             const updatedCart = [...cart];
             updatedCart[existingItemIndex].quantity++;
             setCart(updatedCart);
         } else {
-            const newItem: CartItem = {
-                id: Date.now(),
-                product,
-                quantity: 1,
-                variant,
-            };
             setCart(prevCart => [...prevCart, newItem]);
         }
         setIsCartOpen(true);
@@ -53,7 +86,11 @@ const App: React.FC = () => {
     }, [cart]);
 
     const cartTotal = useMemo(() => {
-        return cart.reduce((total, item) => total + item.variant.price * item.quantity, 0);
+        return cart.reduce((total, item) => {
+            const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
+            const itemTotal = (item.variant.price + addonsTotal) * item.quantity;
+            return total + itemTotal;
+        }, 0);
     }, [cart]);
     
     const formatCurrency = (value: number) => {
@@ -65,11 +102,24 @@ const App: React.FC = () => {
     };
     
     const handlePlaceOrder = () => {
-        const phoneNumber = "573112488013"; // Updated phone number from the menu
+        const phoneNumber = "573112488013";
         let message = "Hola Alex Burger, quiero hacer el siguiente pedido:\n\n";
         cart.forEach(item => {
-            const variantLabel = item.variant.label ? ` (${item.variant.label})` : '';
-            message += `*${item.quantity}x ${item.product.name}${variantLabel}* (${formatCurrency(item.variant.price * item.quantity)})\n`;
+            const variantLabel = item.variant.label !== item.product.name ? ` (${item.variant.label})` : '';
+            const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
+            const itemPrice = item.variant.price + addonsTotal;
+
+            message += `*${item.quantity}x ${item.product.name}${variantLabel}* (${formatCurrency(itemPrice * item.quantity)})\n`;
+
+            if (item.customizations.added.length > 0) {
+                message += `  Adiciones: ${item.customizations.added.map(a => a.name).join(', ')}\n`;
+            }
+            if (item.customizations.removed.length > 0) {
+                message += `  Sin: ${item.customizations.removed.join(', ')}\n`;
+            }
+            if (item.customizations.notes) {
+                message += `  Nota: ${item.customizations.notes}\n`;
+            }
         });
         message += `\n*Total del Pedido: ${formatCurrency(cartTotal)}*`;
 
@@ -80,22 +130,36 @@ const App: React.FC = () => {
     return (
         <div className="min-h-screen bg-brand-dark text-brand-light pb-32">
             <header className="sticky top-0 bg-brand-dark/80 backdrop-blur-md z-30 shadow-lg shadow-black/20">
-                <div className="container mx-auto px-4 py-4">
+                <div className="container mx-auto px-4 pt-4">
                     <h1 className="text-4xl font-display font-extrabold text-brand-orange text-center tracking-tight">
                         ALEX BURGER
                     </h1>
                 </div>
-                <nav className="overflow-x-auto border-t border-b border-brand-surface">
-                    <div className="flex items-center justify-center space-x-2 sm:space-x-4 p-2">
-                        {Object.values(Category).map(category => (
-                            <button
-                                key={category}
-                                onClick={() => setActiveCategory(category)}
-                                className={`px-4 py-2 font-display font-semibold rounded-full whitespace-nowrap transition-all duration-300 ${activeCategory === category ? 'bg-brand-orange text-brand-dark shadow-md' : 'text-brand-gray hover:bg-brand-surface'}`}
-                            >
-                                {category}
-                            </button>
-                        ))}
+                <div className="text-center">
+                    <button
+                        onClick={() => setIsCategoryNavOpen(!isCategoryNavOpen)}
+                        className="inline-flex items-center gap-2 px-5 py-2 bg-brand-surface rounded-b-xl text-brand-gray hover:text-brand-orange transition-all duration-300 shadow-lg"
+                    >
+                        <span className="font-semibold text-sm tracking-wider">MENÚ</span>
+                        <ChevronDownIcon className={`w-5 h-5 transition-transform duration-300 ${isCategoryNavOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
+                <nav className={`border-t border-brand-surface mt-2 transition-all duration-300 ease-in-out overflow-hidden ${isCategoryNavOpen ? 'max-h-96' : 'max-h-0'}`}>
+                    <div className="container mx-auto px-2 py-3">
+                         <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                            {Object.values(Category).map(category => (
+                                <button
+                                    key={category}
+                                    onClick={() => {
+                                        setActiveCategory(category);
+                                        setIsCategoryNavOpen(false);
+                                    }}
+                                    className={`px-4 py-1.5 text-sm font-display font-semibold rounded-full whitespace-nowrap transition-all duration-300 ${activeCategory === category ? 'bg-brand-orange text-brand-dark shadow-md' : 'text-brand-gray hover:bg-brand-surface'}`}
+                                >
+                                    {category}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </nav>
             </header>
@@ -106,11 +170,21 @@ const App: React.FC = () => {
                         <ProductCard
                             key={product.id}
                             product={product}
-                            onAddToCart={handleAddToCart}
+                            onCustomize={handleOpenCustomizeModal}
                         />
                     ))}
                 </div>
             </main>
+
+            {customizingProduct && (
+                 <CustomizationModal
+                    product={customizingProduct.product}
+                    variant={customizingProduct.variant}
+                    adicionales={adicionales}
+                    onClose={() => setCustomizingProduct(null)}
+                    onAddToCart={handleAddToCart}
+                />
+            )}
 
             <Cart 
                 isOpen={isCartOpen} 

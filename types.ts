@@ -1,20 +1,12 @@
-
-// FIX: Add Ingredient type for product customizations.
-export interface Ingredient {
-  id: string | number;
-  name: string;
-  price: number;
-}
-
 export enum Category {
-  Hamburguesas = '🍔 Hamburguesas',
-  Perros = '🌭 Perros',
-  Salchipapas = '🍟 Salchipapas',
-  Choripapas = '🍖 Choripapas',
-  Papas_Locas = '🤯 Papas Locas',
-  Sandwiches = '🥪 Sandwiches',
-  Alternativas = '✨ Alternativas',
-  Adicionales = '➕ Adicionales',
+  Hamburguesas = 'Hamburguesas',
+  Perros = 'Perros',
+  Salchipapas = 'Salchipapas',
+  Choripapas = 'Choripapas',
+  Papas_Locas = 'Papas Locas',
+  Sandwiches = 'Sandwiches',
+  Alternativas = 'Alternativas',
+  Adicionales = 'Adicionales',
 }
 
 export interface Product {
@@ -27,8 +19,12 @@ export interface Product {
   secondaryPriceLabel?: string;
   image: string;
   category: Category;
-  // FIX: Add optional customizableIngredients to Product interface.
-  customizableIngredients?: Ingredient[];
+  baseIngredients?: string[];
+}
+
+// Represents an item added from the Adicionales category
+export interface Adicional extends Product {
+    category: Category.Adicionales;
 }
 
 export interface CartItem {
@@ -39,9 +35,9 @@ export interface CartItem {
     label: string;
     price: number;
   };
-  // FIX: Add optional customizations to CartItem interface.
-  customizations?: {
-    added: Ingredient[];
-    removed: Ingredient[];
+  customizations: {
+    added: Adicional[];
+    removed: string[];
+    notes: string;
   };
 }
