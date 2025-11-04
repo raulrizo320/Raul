@@ -21,7 +21,7 @@ const DrinkModal: React.FC<DrinkModalProps> = ({ isOpen, onClose, drinks, onSele
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-60 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-brand-surface rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-fade-in-up" onClick={e => e.stopPropagation()}>
         <div className="p-6 border-b border-brand-dark flex justify-between items-center">
             <h2 className="text-2xl font-display font-extrabold text-brand-light">Elige tu Bebida</h2>

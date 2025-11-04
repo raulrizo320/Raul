@@ -95,20 +95,6 @@ const CartItemDetails: React.FC<{
             </div>
             
             <CustomizationsList customizations={item.customizations} />
-
-            {item.comboDrink && (
-                <div className="text-xs text-brand-gray mt-1 pl-2 border-l-2 border-brand-orange/50">
-                    <div className="flex justify-between items-center">
-                        <span>✓ {item.comboDrink.name}</span>
-                        <div className="flex items-center gap-2">
-                            <span>{formatCurrency(item.comboDrink.price)}</span>
-                            <button onClick={() => onRemoveDrink(item.id)} className="text-red-400 hover:text-red-300">
-                                <CloseIcon className="w-3 h-3"/>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
             
             {canHaveCombos && (
                 <div className="mt-2 flex flex-col gap-2">
@@ -133,11 +119,20 @@ const CartItemDetails: React.FC<{
                     {!item.comboDrink && (
                         <button 
                             onClick={() => onAddDrink(item.id)}
-                            className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-brand-orange/20 text-brand-orange font-bold rounded-lg hover:bg-brand-orange/30 transition-colors duration-300"
+                            className="w-full flex items-center justify-center gap-2 py-1.5 px-3 text-xs bg-green-500/20 text-green-400 font-bold rounded-lg hover:bg-green-500/30 transition-colors duration-300"
                         >
                             <DrinkIcon className="w-4 h-4" />
                             Añadir Bebida
                         </button>
+                    )}
+                    {item.comboDrink && (
+                        <div className="w-full flex items-center justify-between py-1.5 px-3 text-xs bg-green-500/10 text-green-400 font-bold rounded-lg">
+                            <span>✓ {item.comboDrink.name} (+{formatCurrency(item.comboDrink.price)})</span>
+                            <button onClick={() => onRemoveDrink(item.id)} className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold">
+                                <CloseIcon className="w-3 h-3" />
+                                <span>Quitar</span>
+                            </button>
+                        </div>
                     )}
                 </div>
             )}

@@ -307,13 +307,6 @@ const App: React.FC = () => {
                 />
             )}
 
-            <DrinkModal
-                isOpen={addingDrinkTo !== null}
-                onClose={() => setAddingDrinkTo(null)}
-                drinks={drinks}
-                onSelectDrink={handleSelectDrink}
-            />
-
             <Cart 
                 isOpen={isCartOpen} 
                 onClose={() => setIsCartOpen(false)} 
@@ -325,6 +318,13 @@ const App: React.FC = () => {
                 onRemoveDrink={handleRemoveDrink}
                 onAddFries={handleAddFriesToCartItem}
                 onRemoveFries={handleRemoveFriesFromCartItem}
+            />
+
+            <DrinkModal
+                isOpen={addingDrinkTo !== null}
+                onClose={() => setAddingDrinkTo(null)}
+                drinks={drinks}
+                onSelectDrink={handleSelectDrink}
             />
             
             {cartItemCount > 0 && (
