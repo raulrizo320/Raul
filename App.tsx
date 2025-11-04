@@ -143,6 +143,7 @@ const App: React.FC = () => {
     
     const handleOpenDrinkModal = (itemId: number) => {
         setAddingDrinkTo(itemId);
+        setIsCartOpen(true); // Ensure cart stays open
     };
 
     const handleSelectDrink = (drink: Product) => {
@@ -213,7 +214,7 @@ const App: React.FC = () => {
     };
     
     const handlePlaceOrder = () => {
-        const phoneNumber = "573112488013";
+        const phoneNumber = "573208550880";
         let message = "Hola Alex Burger, quiero hacer el siguiente pedido:\n\n";
         cart.forEach(item => {
             const variantLabel = item.variant.label !== item.product.name ? ` (${item.variant.label})` : '';
