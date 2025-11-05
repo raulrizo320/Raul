@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Product, Category, CartItem, Adicional } from './types';
 import { MENU_DATA } from './constants';
@@ -41,7 +40,7 @@ const Footer: React.FC = () => {
 };
 
 
-const App: React.FC = () => {
+const CustomerApp: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState<Category>(Category.Hamburguesas);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -373,4 +372,4 @@ const App: React.FC = () => {
     );
 };
 
-export default App;
+export default CustomerApp;
