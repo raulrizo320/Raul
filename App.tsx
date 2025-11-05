@@ -6,6 +6,8 @@ import Cart from './components/Cart';
 import CustomizationModal from './components/CustomizationModal';
 import DrinkModal from './components/DrinkModal';
 import { CartIcon, ChevronDownIcon, ShieldCheckIcon } from './components/Icons';
+import { db, collection, addDoc, serverTimestamp } from './firebaseConfig';
+
 
 // Helper to compare customizations
 const areCustomizationsEqual = (custA: CartItem['customizations'], custB: CartItem['customizations']) => {
@@ -46,6 +48,8 @@ const App: React.FC = () => {
     const [addingDrinkTo, setAddingDrinkTo] = useState<number | null>(null);
     const [isCategoryNavOpen, setIsCategoryNavOpen] = useState(false);
     const navTimerRef = useRef<number | null>(null);
+    const [orderStatus, setOrderStatus] = useState<'idle' | 'placing' | 'success' | 'error'>('idle');
+
 
     useEffect(() => {
         if (isCategoryNavOpen) {
@@ -213,34 +217,46 @@ const App: React.FC = () => {
         }).format(value);
     };
     
-    const handlePlaceOrder = () => {
-        const phoneNumber = "573208550880";
-        let message = "Hola Alex Burger, quiero hacer el siguiente pedido:\n\n";
-        cart.forEach(item => {
-            const variantLabel = item.variant.label !== item.product.name ? ` (${item.variant.label})` : '';
-            const addonsTotal = item.customizations.added.reduce((sum, ad) => sum + ad.price, 0);
-            const drinkTotal = item.comboDrink ? item.comboDrink.price : 0;
-            const itemPrice = item.variant.price + addonsTotal + drinkTotal;
+    const handlePlaceOrder = async () => {
+        if (cart.length === 0 || orderStatus === 'placing') return;
+        setOrderStatus('placing');
+        try {
+            const orderItems = cart.map(item => ({
+                productName: item.product.name,
+                quantity: item.quantity,
+                variant: item.variant.label,
+                price: item.variant.price,
+                added: item.customizations.added.map(a => a.name),
+                removed: item.customizations.removed,
+                notes: item.customizations.notes,
+                comboDrink: item.comboDrink ? item.comboDrink.name : null,
+            }));
 
-            message += `*${item.quantity}x ${item.product.name}${variantLabel}* (${formatCurrency(itemPrice * item.quantity)})\n`;
+            await addDoc(collection(db, "orders"), {
+                items: orderItems,
+                total: cartTotal,
+                status: "pending",
+                createdAt: serverTimestamp(),
+            });
 
-            if (item.customizations.added.length > 0) {
-                message += `  Adiciones: ${item.customizations.added.map(a => a.name).join(', ')}\n`;
+            setOrderStatus('success');
+        } catch (error) {
+            console.error("Error al enviar el pedido: ", error);
+            // NOTE: A real app should have user-friendly error handling.
+            // For now, we'll show an error state in the cart.
+            if (error instanceof Error && error.message.includes("Missing or insufficient permissions")) {
+                 alert("Error de configuración: No se pudo conectar a la base de datos. Revisa las reglas de seguridad de Firestore y la configuración de tu proyecto Firebase.");
+            } else {
+                 alert("No se pudo enviar el pedido. Por favor, intenta de nuevo.");
             }
-            if (item.customizations.removed.length > 0) {
-                message += `  Sin: ${item.customizations.removed.join(', ')}\n`;
-            }
-            if (item.comboDrink) {
-                message += `  Bebida: ${item.comboDrink.name}\n`;
-            }
-            if (item.customizations.notes) {
-                message += `  Nota: ${item.customizations.notes}\n`;
-            }
-        });
-        message += `\n*Total del Pedido: ${formatCurrency(cartTotal)}*`;
+            setOrderStatus('error');
+        }
+    };
 
-        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
+    const handleResetOrder = () => {
+        setCart([]);
+        setOrderStatus('idle');
+        setIsCartOpen(false);
     };
 
     return (
@@ -319,6 +335,8 @@ const App: React.FC = () => {
                 onRemoveDrink={handleRemoveDrink}
                 onAddFries={handleAddFriesToCartItem}
                 onRemoveFries={handleRemoveFriesFromCartItem}
+                orderStatus={orderStatus}
+                onResetOrder={handleResetOrder}
             />
 
             <DrinkModal
@@ -328,7 +346,7 @@ const App: React.FC = () => {
                 onSelectDrink={handleSelectDrink}
             />
             
-            {cartItemCount > 0 && (
+            {cartItemCount > 0 && orderStatus !== 'success' && (
                 <div className="fixed bottom-0 left-0 right-0 p-4 bg-transparent z-40 pointer-events-none">
                      <div className="w-full max-w-lg mx-auto pointer-events-auto">
                         <button 

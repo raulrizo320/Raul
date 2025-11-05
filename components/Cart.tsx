@@ -1,6 +1,6 @@
 import React from 'react';
 import { CartItem, Category, Product } from '../types';
-import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon, DrinkIcon, FriesIcon } from './Icons';
+import { CloseIcon, PlusIcon, MinusIcon, TrashIcon, CartIcon, DrinkIcon, FriesIcon, ShieldCheckIcon } from './Icons';
 
 interface CartProps {
   isOpen: boolean;
@@ -13,6 +13,8 @@ interface CartProps {
   onRemoveDrink: (itemId: number) => void;
   onAddFries: (itemId: number) => void;
   onRemoveFries: (itemId: number) => void;
+  orderStatus: 'idle' | 'placing' | 'success' | 'error';
+  onResetOrder: () => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -37,11 +39,9 @@ const singularizeCategory = (category: string): string => {
 
 const getFullProductName = (item: CartItem): string => {
     const categorySingular = singularizeCategory(item.product.category);
-    // For drinks and additions, just use their name.
     if (item.product.category === Category.Bebidas || item.product.category === Category.Adicionales) {
         return item.product.name;
     }
-    // If name already contains category (e.g., "Sandwich Ranchero"), don't prepend.
     if (item.product.name.toLowerCase().includes(categorySingular.toLowerCase())) {
         return item.product.name;
     }
@@ -149,13 +149,105 @@ const CartItemDetails: React.FC<{
 )};
 
 
-const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries }) => {
+const OrderSuccess: React.FC<{ onResetOrder: () => void }> = ({ onResetOrder }) => (
+    <div className="flex-grow flex flex-col items-center justify-center text-center p-6">
+        <ShieldCheckIcon className="w-24 h-24 text-green-400 mb-4"/>
+        <h3 className="text-2xl font-bold text-brand-light">¡Pedido Enviado!</h3>
+        <p className="text-brand-gray mt-2 max-w-sm">
+            Hemos recibido tu pedido y ya lo estamos preparando. 
+            Acércate a la caja para pagar cuando estés listo.
+        </p>
+        <button 
+            onClick={onResetOrder}
+            className="mt-8 w-full max-w-xs py-4 px-6 bg-brand-orange text-brand-dark font-bold rounded-xl text-lg hover:bg-opacity-90 transition-colors duration-300"
+        >
+            Hacer un Nuevo Pedido
+        </button>
+    </div>
+);
+
+const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries, orderStatus, onResetOrder }) => {
     const subtotal = cartItems.reduce((sum, item) => {
         const addonsPrice = item.customizations.added.reduce((s, ad) => s + ad.price, 0);
         const drinkPrice = item.comboDrink ? item.comboDrink.price : 0;
         return sum + (item.variant.price + addonsPrice + drinkPrice) * item.quantity;
     }, 0);
     const total = subtotal;
+
+    const getButtonContent = () => {
+        switch (orderStatus) {
+            case 'placing':
+                return (
+                    <div className="flex items-center justify-center">
+                         <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-brand-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Enviando a cocina...
+                    </div>
+                );
+            case 'error':
+                 return "Reintentar Envío";
+            default:
+                return "Enviar Pedido a Cocina";
+        }
+    };
+    
+    let content;
+
+    if (orderStatus === 'success') {
+        content = <OrderSuccess onResetOrder={onResetOrder} />;
+    } else if (cartItems.length === 0) {
+        content = (
+            <div className="flex-grow flex flex-col items-center justify-center text-center p-6">
+                <CartIcon className="w-24 h-24 text-brand-dark mb-4"/>
+                <h3 className="text-xl font-bold text-gray-400">Tu carrito está vacío</h3>
+                <p className="text-brand-gray mt-2">Agrega productos del menú para empezar tu pedido.</p>
+            </div>
+        );
+    } else {
+        content = (
+            <>
+                <div className="flex-grow overflow-y-auto px-6 divide-y divide-brand-dark">
+                   {cartItems.map(item => (
+                       <CartItemDetails 
+                         key={item.id} 
+                         item={item} 
+                         onUpdateQuantity={onUpdateQuantity} 
+                         onRemoveItem={onRemoveItem} 
+                         onAddDrink={onAddDrink} 
+                         onRemoveDrink={onRemoveDrink}
+                         onAddFries={onAddFries}
+                         onRemoveFries={onRemoveFries}
+                        />
+                   ))}
+                </div>
+                <div className="p-6 bg-brand-dark border-t-2 border-black/50 shadow-top-lg">
+                    {orderStatus === 'error' && (
+                        <p className="text-center text-red-400 text-sm mb-3">
+                            Hubo un error al enviar tu pedido. Por favor, inténtalo de nuevo.
+                        </p>
+                    )}
+                    <div className="flex justify-between items-center text-lg mb-4">
+                        <span className="text-brand-gray">Subtotal</span>
+                        <span className="font-bold text-brand-light">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-2xl font-bold mb-6">
+                        <span className="text-brand-light">Total</span>
+                        <span className="text-brand-orange">{formatCurrency(total)}</span>
+                    </div>
+                    <button 
+                        onClick={onPlaceOrder} 
+                        disabled={orderStatus === 'placing'}
+                        className="w-full py-4 px-6 bg-brand-orange text-brand-dark font-bold rounded-xl text-lg hover:bg-opacity-90 transition-colors duration-300 disabled:bg-brand-gray disabled:cursor-not-allowed"
+                    >
+                        {getButtonContent()}
+                    </button>
+                </div>
+            </>
+        )
+    }
+
 
     return (
         <>
@@ -175,44 +267,8 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
                         </button>
                     </div>
 
-                    {cartItems.length === 0 ? (
-                        <div className="flex-grow flex flex-col items-center justify-center text-center p-6">
-                            <CartIcon className="w-24 h-24 text-brand-dark mb-4"/>
-                            <h3 className="text-xl font-bold text-gray-400">Tu carrito está vacío</h3>
-                            <p className="text-brand-gray mt-2">Agrega productos del menú para empezar tu pedido.</p>
-                        </div>
-                    ) : (
-                        <div className="flex-grow overflow-y-auto px-6 divide-y divide-brand-dark">
-                           {cartItems.map(item => (
-                               <CartItemDetails 
-                                 key={item.id} 
-                                 item={item} 
-                                 onUpdateQuantity={onUpdateQuantity} 
-                                 onRemoveItem={onRemoveItem} 
-                                 onAddDrink={onAddDrink} 
-                                 onRemoveDrink={onRemoveDrink}
-                                 onAddFries={onAddFries}
-                                 onRemoveFries={onRemoveFries}
-                                />
-                           ))}
-                        </div>
-                    )}
-
-                    {cartItems.length > 0 && (
-                        <div className="p-6 bg-brand-dark border-t-2 border-black/50 shadow-top-lg">
-                            <div className="flex justify-between items-center text-lg mb-4">
-                                <span className="text-brand-gray">Subtotal</span>
-                                <span className="font-bold text-brand-light">{formatCurrency(subtotal)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-2xl font-bold mb-6">
-                                <span className="text-brand-light">Total</span>
-                                <span className="text-brand-orange">{formatCurrency(total)}</span>
-                            </div>
-                            <button onClick={onPlaceOrder} className="w-full py-4 px-6 bg-brand-orange text-brand-dark font-bold rounded-xl text-lg hover:bg-opacity-90 transition-colors duration-300">
-                                Realizar Pedido
-                            </button>
-                        </div>
-                    )}
+                    {content}
+                    
                 </div>
             </div>
         </>
