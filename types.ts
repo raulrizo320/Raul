@@ -49,9 +49,10 @@ export interface CartItem {
 // Represents an order stored in Firebase
 export enum OrderStatus {
   Pending = 'pending',
-  Preparing = 'preparing',
-  Ready = 'ready',
+  Confirmed = 'confirmed',
+  OutForDelivery = 'out-for-delivery',
   Completed = 'completed',
+  Cancelled = 'cancelled',
 }
 
 export interface OrderItem {

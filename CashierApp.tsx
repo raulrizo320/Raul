@@ -9,6 +9,7 @@ import Cart from './components/Cart';
 import CustomizationModal from './components/CustomizationModal';
 import DrinkModal from './components/DrinkModal';
 import Timer from './components/Timer';
+import TableActionsModal from './components/TableActionsModal';
 import { BeakerIcon, BoltIcon, TableCellsIcon, TruckIcon, CartIcon, ChevronDownIcon } from './components/Icons';
 
 // #region --- Vistas y Componentes del Panel ---
@@ -19,14 +20,13 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('es-CO', { style
 
 
 interface VentaRapidaViewProps {
-  selectedTable: number | null;
+  orderContext: Order | null; // Pedido existente al que se agregarán ítems
   onOrderPlaced: () => void;
-  onSaveOrderLocally: (orderData: Omit<Order, 'id'>) => void;
+  onSaveOrder: (orderData: Omit<Order, 'id'>, existingOrder: Order | null) => void;
 }
 
 
-const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrderPlaced, onSaveOrderLocally }) => {
-    // Esta vista replica la lógica del CustomerApp para actuar como un Punto de Venta (POS)
+const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ orderContext, onOrderPlaced, onSaveOrder }) => {
     const [activeCategory, setActiveCategory] = useState<Category>(Category.Hamburguesas);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -54,7 +54,6 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
 
     const cartItemCount = useMemo(() => cart.reduce((total, item) => total + item.quantity, 0), [cart]);
 
-    // --- Lógica del Carrito (adaptada de CustomerApp) ---
     const handleAddToCart = (newItem: CartItem) => {
         setCart(prev => [...prev, newItem]);
         setIsCartOpen(true);
@@ -80,14 +79,13 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
     const handleAddFriesToCartItem = (itemId: number) => setCart(cart.map(item => (item.id === itemId && item.product.secondaryPrice) ? { ...item, variant: { label: item.product.secondaryPriceLabel!, price: item.product.secondaryPrice } } : item));
     const handleRemoveFriesFromCartItem = (itemId: number) => setCart(cart.map(item => (item.id === itemId && item.product.priceLabel) ? { ...item, variant: { label: item.product.priceLabel, price: item.product.price } } : item));
     
-    // MODIFICADO: Esta función ahora guarda localmente en lugar de en Firebase.
-    const handlePlaceOrder = () => {
-        if (!selectedTable) {
-            alert("No hay una mesa seleccionada para este pedido.");
+    const handleSaveAndExit = () => {
+        if (cart.length === 0) {
+            onOrderPlaced(); // Salir sin guardar si no hay nada en el carrito
             return;
         }
 
-        const orderItems: OrderItem[] = cart.map(item => ({
+        const newOrderItems: OrderItem[] = cart.map(item => ({
             productName: item.product.name,
             quantity: item.quantity,
             variant: item.variant.label,
@@ -97,21 +95,27 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
             notes: item.customizations.notes,
             comboDrink: item.comboDrink ? item.comboDrink.name : null,
         }));
-
-        const newOrderData: Omit<Order, 'id'> = {
-            items: orderItems,
-            total: cartTotal,
-            status: OrderStatus.Pending,
-            createdAt: new Date(), // Usamos la fecha actual directamente
-            orderType: 'in-store' as OrderType,
-            tableNumber: selectedTable,
-        };
         
-        onSaveOrderLocally(newOrderData); // Llama a la función del padre para guardar en el estado local
-        onOrderPlaced(); // Navega de vuelta a la vista de mesas
+        if (orderContext) {
+            // Fusionamos los nuevos ítems y el nuevo total con el contexto existente
+             onSaveOrder({
+                ...orderContext,
+                items: [...orderContext.items, ...newOrderItems],
+                total: orderContext.total + cartTotal,
+            }, orderContext);
+        } else {
+            // Estamos creando un pedido nuevo sin contexto previo (ej. venta rápida pura)
+            onSaveOrder({
+                items: newOrderItems,
+                total: cartTotal,
+                status: OrderStatus.Pending,
+                createdAt: new Date(),
+                orderType: 'in-store' as OrderType,
+            }, null);
+        }
+        onOrderPlaced();
     };
     
-    // Se mantiene para el flujo del modal del carrito
     const handleResetOrder = () => {
         setCart([]);
         setIsCartOpen(false);
@@ -122,9 +126,9 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
         <div className="relative">
             <header className="sticky top-[80px] bg-brand-dark/80 backdrop-blur-md z-20 shadow-lg shadow-black/20">
                 <div className="container mx-auto px-4 pt-4 pb-2 text-center">
-                     {selectedTable && (
+                     {orderContext?.tableNumber && (
                         <div className="text-2xl font-display font-extrabold text-brand-orange tracking-tight mb-2">
-                            Creando Pedido para: Mesa {selectedTable}
+                           {orderContext.items.length === 0 ? 'Creando Pedido' : 'Agregando a Pedido'}: Mesa {orderContext.tableNumber}
                         </div>
                     )}
                      <h2 className="text-xl font-display font-semibold text-brand-light uppercase tracking-wider opacity-80">
@@ -168,12 +172,12 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
                 cartItems={cart} 
                 onUpdateQuantity={handleUpdateQuantity} 
                 onRemoveItem={handleRemoveFromCart} 
-                onPlaceOrder={handlePlaceOrder} 
+                onPlaceOrder={handleSaveAndExit} 
                 onAddDrink={handleOpenDrinkModal} 
                 onRemoveDrink={handleRemoveDrink} 
                 onAddFries={handleAddFriesToCartItem} 
                 onRemoveFries={handleRemoveFriesFromCartItem} 
-                orderStatus={'idle'} // El estado de carga ya no es necesario para el guardado local
+                orderStatus={'idle'}
                 onResetOrder={handleResetOrder} 
                 confirmButtonText="Guardar Pedido"
             />
@@ -197,10 +201,10 @@ const VentaRapidaView: React.FC<VentaRapidaViewProps> = ({ selectedTable, onOrde
     );
 };
 
-const MesasView: React.FC<{ orders: Order[], onSelectTable: (tableNumber: number) => void }> = ({ orders, onSelectTable }) => {
+const MesasView: React.FC<{ orders: Order[], onSelectTable: (tableNumber: number) => void, onManageTable: (order: Order) => void }> = ({ orders, onSelectTable, onManageTable }) => {
     const activeTableOrders = useMemo(() => {
         const tableMap = new Map<number, Order>();
-        const inStoreOrders = orders.filter(o => o.orderType === 'in-store' && o.status !== OrderStatus.Completed);
+        const inStoreOrders = orders.filter(o => o.orderType === 'in-store' && o.status !== OrderStatus.Completed && o.status !== OrderStatus.Cancelled);
         for (const order of inStoreOrders) {
             if (order.tableNumber) {
                 tableMap.set(order.tableNumber, order);
@@ -220,10 +224,10 @@ const MesasView: React.FC<{ orders: Order[], onSelectTable: (tableNumber: number
                     return (
                         <button 
                             key={tableNumber} 
-                            onClick={!isOccupied ? () => onSelectTable(tableNumber) : undefined}
+                            onClick={() => isOccupied ? onManageTable(order) : onSelectTable(tableNumber)}
                             className={`bg-brand-dark rounded-lg p-4 flex flex-col items-center justify-center aspect-square shadow-lg border-2 transition-all duration-300 ${
                                 isOccupied 
-                                ? 'border-brand-orange cursor-default' 
+                                ? 'border-brand-orange hover:scale-105 cursor-pointer' 
                                 : 'border-brand-surface hover:border-brand-orange hover:scale-105 cursor-pointer'
                             }`}
                         >
@@ -253,39 +257,44 @@ const DomiciliosView: React.FC<{ orders: Order[], onUpdateStatus: (id: string, s
         const deliveryOrders = orders.filter(o => o.orderType === 'delivery');
         return {
             [OrderStatus.Pending]: deliveryOrders.filter(o => o.status === OrderStatus.Pending),
-            [OrderStatus.Preparing]: deliveryOrders.filter(o => o.status === OrderStatus.Preparing),
-            [OrderStatus.Ready]: deliveryOrders.filter(o => o.status === OrderStatus.Ready),
+            [OrderStatus.Confirmed]: deliveryOrders.filter(o => o.status === OrderStatus.Confirmed),
+            [OrderStatus.OutForDelivery]: deliveryOrders.filter(o => o.status === OrderStatus.OutForDelivery),
             [OrderStatus.Completed]: deliveryOrders.filter(o => o.status === OrderStatus.Completed)
                 .sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0)),
         };
     }, [orders]);
 
     const getStatusColor = (status: OrderStatus) => ({
-        [OrderStatus.Pending]: 'border-t-blue-500', [OrderStatus.Preparing]: 'border-t-yellow-500',
-        [OrderStatus.Ready]: 'border-t-green-500', [OrderStatus.Completed]: 'border-t-gray-500',
-    }[status]);
+        [OrderStatus.Pending]: 'border-t-blue-500',
+        [OrderStatus.Confirmed]: 'border-t-yellow-500',
+        [OrderStatus.OutForDelivery]: 'border-t-purple-500',
+        [OrderStatus.Completed]: 'border-t-gray-500',
+        [OrderStatus.Cancelled]: 'border-t-red-500',
+    }[status] || 'border-t-gray-500');
 
     const getStatusTitle = (status: OrderStatus) => ({
-        [OrderStatus.Pending]: 'Nuevos Pedidos', [OrderStatus.Preparing]: 'En Preparación',
-        [OrderStatus.Ready]: 'Listos para Entregar', [OrderStatus.Completed]: 'Completados Hoy',
-    }[status]);
+        [OrderStatus.Pending]: 'Nuevos Pedidos',
+        [OrderStatus.Confirmed]: 'Confirmados',
+        [OrderStatus.OutForDelivery]: 'Para Despacho',
+        [OrderStatus.Completed]: 'Completados Hoy',
+    }[status] || 'Desconocido');
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
-            {[OrderStatus.Pending, OrderStatus.Preparing, OrderStatus.Ready, OrderStatus.Completed].map(status => (
+            {[OrderStatus.Pending, OrderStatus.Confirmed, OrderStatus.OutForDelivery, OrderStatus.Completed].map(status => (
                 <div key={status} className="bg-brand-dark rounded-lg">
                     <div className={`p-4 border-t-8 rounded-t-lg ${getStatusColor(status)}`}>
                         <h2 className="text-xl font-display font-bold text-brand-light flex items-center">
                             {getStatusTitle(status)}
                             <span className="ml-2 bg-brand-surface text-brand-orange font-mono text-sm rounded-full w-7 h-7 flex items-center justify-center">
-                                {ordersByStatus[status].length}
+                                {ordersByStatus[status as keyof typeof ordersByStatus]?.length || 0}
                             </span>
                         </h2>
                     </div>
                     <div className="p-4 space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto">
-                        {ordersByStatus[status].length === 0 
+                        {(ordersByStatus[status as keyof typeof ordersByStatus]?.length || 0) === 0 
                             ? <p className="text-brand-gray text-center pt-8">No hay pedidos aquí.</p>
-                            : ordersByStatus[status].map(order => <OrderCard key={order.id} order={order} onUpdateStatus={onUpdateStatus} />)
+                            : ordersByStatus[status as keyof typeof ordersByStatus].map(order => <OrderCard key={order.id} order={order} onUpdateStatus={onUpdateStatus} />)
                         }
                     </div>
                 </div>
@@ -300,15 +309,15 @@ const CashierApp: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<View>('domicilios');
-  const [selectedTableForOrder, setSelectedTableForOrder] = useState<number | null>(null);
+  const [activeView, setActiveView] = useState<View>('mesas');
+  const [orderContext, setOrderContext] = useState<Order | null>(null);
+  const [selectedOrderForActions, setSelectedOrderForActions] = useState<Order | null>(null);
 
 
   useEffect(() => {
     if (firebaseConfig.apiKey.startsWith("AIzaSyXXX")) {
         setError("Firebase no está configurado. La aplicación funcionará en modo local. Los pedidos de domicilio no aparecerán aquí.");
         setLoading(false);
-        // No retornamos para permitir que la app funcione localmente.
     }
 
     const startOfToday = new Date();
@@ -334,7 +343,6 @@ const CashierApp: React.FC = () => {
             };
         }).filter(order => order.status !== OrderStatus.Completed || order.createdAt >= startOfToday);
         
-        // Mantenemos los pedidos locales que aún no están en Firebase
         setOrders(prevOrders => {
             const localOnly = prevOrders.filter(p => p.id.startsWith('local_'));
             const fetchedIds = new Set(fetchedOrders.map(f => f.id));
@@ -359,36 +367,57 @@ const CashierApp: React.FC = () => {
     return () => unsubscribe();
   }, []);
   
-  const handleSelectTable = (tableNumber: number) => {
-    setSelectedTableForOrder(tableNumber);
+  const handleSelectTableForNewOrder = (tableNumber: number) => {
+    // Crear un contexto de pedido temporal para una nueva orden
+    const newOrderContext: Order = {
+        id: `local_${Date.now()}`,
+        items: [],
+        total: 0,
+        status: OrderStatus.Pending,
+        createdAt: new Date(),
+        orderType: 'in-store',
+        tableNumber: tableNumber,
+    };
+    setOrderContext(newOrderContext);
     setActiveView('ventaRapida');
   };
 
-  const handleOrderPlaced = () => {
-    setSelectedTableForOrder(null);
+  const handleReturnToTablesView = () => {
+    setOrderContext(null);
     setActiveView('mesas');
   }
 
-  const handleSaveOrderLocally = (orderData: Omit<Order, 'id'>) => {
-    const mockOrder: Order = {
+  const handleSaveOrder = (orderData: Omit<Order, 'id'>, existingOrder: Order | null) => {
+    // Revisa si el pedido pasado como 'existente' es en realidad nuevo (ej. no está en el array de pedidos)
+    const isNewOrderFromContext = existingOrder && !orders.some(o => o.id === existingOrder.id);
+
+    if (existingOrder && !isNewOrderFromContext) {
+      // Es una actualización real a un pedido que ya está en el estado
+      setOrders(prev => prev.map(o => 
+        o.id === existingOrder.id ? { ...o, ...orderData, id: o.id } : o
+      ));
+    } else {
+      // Es un pedido nuevo. Puede venir de un contexto de mesa (isNewOrderFromContext es true)
+      // o de un flujo sin contexto (existingOrder es null).
+      const newOrder: Order = {
         ...orderData,
-        id: `local_${Date.now()}`, // ID temporal para uso local
-    };
-    setOrders(prevOrders => [mockOrder, ...prevOrders]);
+        id: existingOrder?.id || `local_${Date.now()}` // Usa el ID del contexto si está disponible, si no, genera uno nuevo
+      };
+      setOrders(prev => [newOrder, ...prev]);
+    }
   };
 
-
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
-      // Si es un pedido local, solo actualizamos el estado
       if (orderId.startsWith('local_')) {
-          setOrders(orders.map(o => o.id === orderId ? {...o, status: newStatus} : o));
+          setOrders(orders.map(o => o.id === orderId ? {...o, status: newStatus, completedAt: newStatus === OrderStatus.Completed || newStatus === OrderStatus.Cancelled ? new Date() : undefined } : o));
           return;
       }
-      // Si no, lo actualizamos en Firebase
       try {
           const orderRef = doc(db, "orders", orderId);
-          const updateData: { status: OrderStatus; completedAt?: any } = { status: newStatus };
-          if (newStatus === OrderStatus.Completed) updateData.completedAt = serverTimestamp();
+          const updateData: any = { status: newStatus };
+          if (newStatus === OrderStatus.Completed || newStatus === OrderStatus.Cancelled) {
+              updateData.completedAt = serverTimestamp();
+          }
           await updateDoc(orderRef, updateData);
       } catch (err) {
           console.error("Error updating order status:", err);
@@ -396,8 +425,17 @@ const CashierApp: React.FC = () => {
       }
   };
 
+    const handleOpenTableActions = (order: Order) => {
+        setSelectedOrderForActions(order);
+    };
+
+    const handleAddItemsToOrder = (order: Order) => {
+        setOrderContext(order);
+        setSelectedOrderForActions(null);
+        setActiveView('ventaRapida');
+    };
+
   const handleGenerateTestOrder = async () => {
-    // Esta función sí necesita Firebase. Mostramos alerta si no está configurado.
     if (firebaseConfig.apiKey.startsWith("AIzaSyXXX")) {
         alert("¡Error de Configuración!\n\nReemplaza los datos de ejemplo en 'firebaseConfig.ts' para poder generar pedidos de prueba.");
         return;
@@ -453,13 +491,13 @@ const CashierApp: React.FC = () => {
         <aside className="w-72 bg-brand-surface/30 p-4 shadow-lg flex-shrink-0 overflow-y-auto border-r border-black/20">
             <h2 className="text-sm font-bold text-brand-gray uppercase tracking-wider mb-4 px-2">Opciones</h2>
             <nav className="flex flex-col gap-2">
-                <button className={getNavButtonClasses('ventaRapida')} onClick={() => { setActiveView('ventaRapida'); setSelectedTableForOrder(null); }}>
+                <button className={getNavButtonClasses('ventaRapida')} onClick={() => { setActiveView('ventaRapida'); setOrderContext(null); }}>
                     <BoltIcon className="w-6 h-6"/><span>Venta Rápida</span>
                 </button>
-                <button className={getNavButtonClasses('mesas')} onClick={() => { setActiveView('mesas'); setSelectedTableForOrder(null); }}>
+                <button className={getNavButtonClasses('mesas')} onClick={() => { setActiveView('mesas'); setOrderContext(null); }}>
                     <TableCellsIcon className="w-6 h-6"/><span>Mesas</span>
                 </button>
-                <button className={getNavButtonClasses('domicilios')} onClick={() => { setActiveView('domicilios'); setSelectedTableForOrder(null); }}>
+                <button className={getNavButtonClasses('domicilios')} onClick={() => { setActiveView('domicilios'); setOrderContext(null); }}>
                     <TruckIcon className="w-6 h-6"/><span>Domicilios</span>
                 </button>
             </nav>
@@ -473,11 +511,28 @@ const CashierApp: React.FC = () => {
                 </div>
             )}
 
-            {activeView === 'ventaRapida' && <VentaRapidaView selectedTable={selectedTableForOrder} onOrderPlaced={handleOrderPlaced} onSaveOrderLocally={handleSaveOrderLocally} />}
-            {activeView === 'mesas' && <MesasView orders={orders} onSelectTable={handleSelectTable} />}
+            {activeView === 'ventaRapida' && <VentaRapidaView orderContext={orderContext} onOrderPlaced={handleReturnToTablesView} onSaveOrder={handleSaveOrder} />}
+            {activeView === 'mesas' && <MesasView orders={orders} onSelectTable={handleSelectTableForNewOrder} onManageTable={handleOpenTableActions}/>}
             {activeView === 'domicilios' && <DomiciliosView orders={orders} onUpdateStatus={handleUpdateOrderStatus} />}
         </main>
       </div>
+      {selectedOrderForActions && (
+        <TableActionsModal
+            order={selectedOrderForActions}
+            onClose={() => setSelectedOrderForActions(null)}
+            onAddItems={() => handleAddItemsToOrder(selectedOrderForActions)}
+            onMarkAsCompleted={() => {
+                handleUpdateOrderStatus(selectedOrderForActions.id, OrderStatus.Completed);
+                setSelectedOrderForActions(null);
+            }}
+            onCancelOrder={() => {
+                if(window.confirm('¿Estás seguro de que quieres cancelar este pedido? Esta acción no se puede deshacer.')) {
+                    handleUpdateOrderStatus(selectedOrderForActions.id, OrderStatus.Cancelled);
+                    setSelectedOrderForActions(null);
+                }
+            }}
+        />
+      )}
     </div>
   );
 };

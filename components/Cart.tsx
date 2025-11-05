@@ -153,16 +153,15 @@ const CartItemDetails: React.FC<{
 const OrderSuccess: React.FC<{ onResetOrder: () => void }> = ({ onResetOrder }) => (
     <div className="flex-grow flex flex-col items-center justify-center text-center p-6">
         <ShieldCheckIcon className="w-24 h-24 text-green-400 mb-4"/>
-        <h3 className="text-2xl font-bold text-brand-light">¡Pedido Enviado!</h3>
+        <h3 className="text-2xl font-bold text-brand-light">¡Pedido Recibido en Caja!</h3>
         <p className="text-brand-gray mt-2 max-w-sm">
-            Hemos recibido tu pedido y ya lo estamos preparando. 
-            Acércate a la caja para pagar cuando estés listo.
+            Tu pedido ha sido enviado correctamente. Un mesero se acercará a tu mesa en breve. Puedes pagar en caja cuando lo desees.
         </p>
         <button 
             onClick={onResetOrder}
             className="mt-8 w-full max-w-xs py-4 px-6 bg-brand-orange text-brand-dark font-bold rounded-xl text-lg hover:bg-opacity-90 transition-colors duration-300"
         >
-            Hacer un Nuevo Pedido
+            Volver al Menú
         </button>
     </div>
 );
@@ -184,7 +183,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Enviando a cocina...
+                        Enviando a caja...
                     </div>
                 );
             case 'error':

@@ -18,18 +18,18 @@ const formatCurrency = (value: number) => {
 
 const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
     switch (currentStatus) {
-        case OrderStatus.Pending: return OrderStatus.Preparing;
-        case OrderStatus.Preparing: return OrderStatus.Ready;
-        case OrderStatus.Ready: return OrderStatus.Completed;
+        case OrderStatus.Pending: return OrderStatus.Confirmed;
+        case OrderStatus.Confirmed: return OrderStatus.OutForDelivery;
+        case OrderStatus.OutForDelivery: return OrderStatus.Completed;
         default: return null;
     }
 }
 
 const getActionTextAndStyle = (currentStatus: OrderStatus): { text: string, style: string } => {
     switch (currentStatus) {
-        case OrderStatus.Pending: return { text: 'Empezar Preparación', style: 'bg-blue-600 hover:bg-blue-700' };
-        case OrderStatus.Preparing: return { text: 'Marcar como Listo', style: 'bg-yellow-600 hover:bg-yellow-700' };
-        case OrderStatus.Ready: return { text: 'Entregar y Archivar', style: 'bg-green-600 hover:bg-green-700' };
+        case OrderStatus.Pending: return { text: 'Confirmar Pedido', style: 'bg-blue-600 hover:bg-blue-700' };
+        case OrderStatus.Confirmed: return { text: 'Despachar Pedido', style: 'bg-yellow-600 hover:bg-yellow-700' };
+        case OrderStatus.OutForDelivery: return { text: 'Finalizar Entrega', style: 'bg-green-600 hover:bg-green-700' };
         default: return { text: 'Acción', style: 'bg-gray-600 hover:bg-gray-700' };
     }
 }
