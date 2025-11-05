@@ -1,6 +1,5 @@
-
 import { initializeApp } from "firebase/app";
-import { getFirestore, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 // ##################################################################
 // #                                                                #
@@ -28,5 +27,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Exportamos las funciones que usaremos para que no haya que importarlas en cada componente
-export { db, collection, addDoc, serverTimestamp, firebaseConfig };
+// Exportamos solo la instancia de la DB y la config.
+// Las funciones como collection, addDoc, serverTimestamp, etc.,
+// deben ser importadas directamente desde 'firebase/firestore' en cada
+// componente para evitar errores de referencia circular.
+export { db, firebaseConfig };

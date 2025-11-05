@@ -1,3 +1,5 @@
+import { FirebaseApp } from "firebase/app";
+
 export enum Category {
   Hamburguesas = 'Hamburguesas',
   Perros = 'Perros',
@@ -42,4 +44,38 @@ export interface CartItem {
     notes: string;
   };
   comboDrink?: Product; // The drink added as a combo
+}
+
+// Represents an order stored in Firebase
+export enum OrderStatus {
+  Pending = 'pending',
+  Preparing = 'preparing',
+  Ready = 'ready',
+  Completed = 'completed',
+}
+
+export interface OrderItem {
+  productName: string;
+  quantity: number;
+  variant: string;
+  price: number;
+  added: string[];
+  removed: string[];
+  notes: string;
+  comboDrink: string | null;
+}
+
+export type OrderType = 'in-store' | 'delivery';
+
+export interface Order {
+    id: string;
+    items: OrderItem[];
+    total: number;
+    status: OrderStatus;
+    createdAt: Date;
+    completedAt?: Date;
+    orderType: OrderType;
+    customerName?: string;
+    customerPhone?: string;
+    tableNumber?: number;
 }

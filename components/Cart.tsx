@@ -15,6 +15,7 @@ interface CartProps {
   onRemoveFries: (itemId: number) => void;
   orderStatus: 'idle' | 'placing' | 'success' | 'error';
   onResetOrder: () => void;
+  confirmButtonText?: string;
 }
 
 const formatCurrency = (value: number) => {
@@ -166,7 +167,7 @@ const OrderSuccess: React.FC<{ onResetOrder: () => void }> = ({ onResetOrder }) 
     </div>
 );
 
-const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries, orderStatus, onResetOrder }) => {
+const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onPlaceOrder, onAddDrink, onRemoveDrink, onAddFries, onRemoveFries, orderStatus, onResetOrder, confirmButtonText }) => {
     const subtotal = cartItems.reduce((sum, item) => {
         const addonsPrice = item.customizations.added.reduce((s, ad) => s + ad.price, 0);
         const drinkPrice = item.comboDrink ? item.comboDrink.price : 0;
@@ -189,7 +190,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose, cartItems, onUpdateQuantit
             case 'error':
                  return "Reintentar Envío";
             default:
-                return "Enviar Pedido a Cocina";
+                return confirmButtonText || "Enviar Pedido a Cocina";
         }
     };
     

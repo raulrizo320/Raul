@@ -17,10 +17,10 @@ const Router: React.FC = () => {
   }, []);
 
   switch (route) {
-    case '#/cajero':
-      return <CashierApp />;
-    default:
+    case '#/cliente':
       return <CustomerApp />;
+    default:
+      return <CashierApp />;
   }
 };
 

@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, Category, CartItem, Adicional } from './types';
+import { Product, Category, CartItem, Adicional, OrderStatus, OrderType } from './types';
 import { MENU_DATA } from './constants';
 import ProductCard from './components/ProductCard';
 import Cart from './components/Cart';
 import CustomizationModal from './components/CustomizationModal';
 import DrinkModal from './components/DrinkModal';
-import { CartIcon, ChevronDownIcon, ShieldCheckIcon } from './components/Icons';
-import { db, collection, addDoc, serverTimestamp, firebaseConfig } from './firebaseConfig';
+import OrderTypeModal from './components/OrderTypeModal'; // Importar el nuevo modal
+import { CartIcon, ChevronDownIcon, ShieldCheckIcon, CloseIcon } from './components/Icons';
+import { db, firebaseConfig } from './firebaseConfig';
+import { serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 
 // Helper to compare customizations
@@ -39,6 +41,85 @@ const Footer: React.FC = () => {
     );
 };
 
+interface DeliveryInfoModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (name: string, phone: string) => void;
+  isLoading: boolean;
+}
+
+const DeliveryInfoModal: React.FC<DeliveryInfoModalProps> = ({ isOpen, onClose, onConfirm, isLoading }) => {
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [error, setError] = useState('');
+
+    const handleSubmit = () => {
+        if (!name.trim() || !phone.trim()) {
+            setError('Por favor, completa ambos campos.');
+            return;
+        }
+        setError('');
+        onConfirm(name, phone);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-brand-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-brand-dark flex justify-between items-center">
+                    <h2 className="text-2xl font-display font-extrabold text-brand-light">Información de Domicilio</h2>
+                    <button onClick={onClose} className="text-gray-500 hover:text-brand-orange transition-colors">
+                        <CloseIcon className="w-8 h-8" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-brand-gray">Necesitamos tus datos para notificarte cuando tu pedido esté listo.</p>
+                    <div>
+                        <label htmlFor="customerName" className="font-bold text-lg text-brand-orange mb-2 block">Nombre</label>
+                        <input 
+                            id="customerName"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Tu nombre completo"
+                            className="w-full p-3 bg-brand-dark rounded-lg text-brand-light border border-brand-gray/50 focus:ring-brand-orange focus:border-brand-orange transition"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="customerPhone" className="font-bold text-lg text-brand-orange mb-2 block">Celular</label>
+                        <input 
+                            id="customerPhone"
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="Tu número de celular"
+                            className="w-full p-3 bg-brand-dark rounded-lg text-brand-light border border-brand-gray/50 focus:ring-brand-orange focus:border-brand-orange transition"
+                        />
+                    </div>
+                     {error && <p className="text-red-400 text-sm">{error}</p>}
+                </div>
+                <div className="p-6 mt-auto bg-brand-dark/50 border-t border-black/50">
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isLoading}
+                        className="w-full flex justify-center items-center py-4 px-6 bg-brand-orange text-brand-dark font-bold rounded-xl hover:bg-opacity-90 transition-colors duration-300 text-lg disabled:bg-brand-gray"
+                    >
+                        {isLoading ? (
+                            <svg className="animate-spin h-6 w-6 text-brand-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        ) : (
+                            'Confirmar Pedido'
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const CustomerApp: React.FC = () => {
     const [activeCategory, setActiveCategory] = useState<Category>(Category.Hamburguesas);
@@ -49,6 +130,8 @@ const CustomerApp: React.FC = () => {
     const [isCategoryNavOpen, setIsCategoryNavOpen] = useState(false);
     const navTimerRef = useRef<number | null>(null);
     const [orderStatus, setOrderStatus] = useState<'idle' | 'placing' | 'success' | 'error'>('idle');
+    const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
+    const [isOrderTypeModalOpen, setIsOrderTypeModalOpen] = useState(false);
 
 
     useEffect(() => {
@@ -217,17 +300,19 @@ const CustomerApp: React.FC = () => {
         }).format(value);
     };
     
-    const handlePlaceOrder = async () => {
+    const handleInitiateOrder = () => {
         if (cart.length === 0 || orderStatus === 'placing') return;
         
-        // Comprobación de la configuración de Firebase
         if (firebaseConfig.apiKey.startsWith("AIzaSyXXX")) {
             alert("¡Error de Configuración!\n\nPor favor, abre el archivo 'firebaseConfig.ts' y reemplaza los datos de ejemplo con las credenciales reales de tu proyecto de Firebase para poder enviar pedidos.");
             return;
         }
+        setIsOrderTypeModalOpen(true);
+    };
 
+    const placeOrder = async (orderData: any) => {
         setOrderStatus('placing');
-        try {
+         try {
             const orderItems = cart.map(item => ({
                 productName: item.product.name,
                 quantity: item.quantity,
@@ -242,8 +327,9 @@ const CustomerApp: React.FC = () => {
             await addDoc(collection(db, "orders"), {
                 items: orderItems,
                 total: cartTotal,
-                status: "pending",
+                status: OrderStatus.Pending,
                 createdAt: serverTimestamp(),
+                ...orderData
             });
 
             setOrderStatus('success');
@@ -255,8 +341,27 @@ const CustomerApp: React.FC = () => {
                  alert("No se pudo enviar el pedido. Por favor, revisa la consola para más detalles e inténtalo de nuevo.");
             }
             setOrderStatus('error');
+        } finally {
+            setIsDeliveryModalOpen(false);
+            setIsOrderTypeModalOpen(false);
         }
+    }
+    
+    const handleConfirmDeliveryOrder = (name: string, phone: string) => {
+        placeOrder({
+            orderType: 'delivery' as OrderType,
+            customerName: name,
+            customerPhone: phone,
+        });
     };
+    
+    const handleConfirmInStoreOrder = (tableNumber: number) => {
+        placeOrder({
+            orderType: 'in-store' as OrderType,
+            tableNumber: tableNumber
+        });
+    };
+
 
     const handleResetOrder = () => {
         setCart([]);
@@ -335,13 +440,14 @@ const CustomerApp: React.FC = () => {
                 cartItems={cart} 
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemoveItem={handleRemoveFromCart}
-                onPlaceOrder={handlePlaceOrder}
+                onPlaceOrder={handleInitiateOrder}
                 onAddDrink={handleOpenDrinkModal}
                 onRemoveDrink={handleRemoveDrink}
                 onAddFries={handleAddFriesToCartItem}
                 onRemoveFries={handleRemoveFriesFromCartItem}
                 orderStatus={orderStatus}
                 onResetOrder={handleResetOrder}
+                confirmButtonText="Enviar Pedido"
             />
 
             <DrinkModal
@@ -349,6 +455,30 @@ const CustomerApp: React.FC = () => {
                 onClose={() => setAddingDrinkTo(null)}
                 drinks={drinks}
                 onSelectDrink={handleSelectDrink}
+            />
+
+             <OrderTypeModal
+                isOpen={isOrderTypeModalOpen}
+                onClose={() => setIsOrderTypeModalOpen(false)}
+                onConfirmDelivery={() => {
+                    setIsOrderTypeModalOpen(false);
+                    setIsDeliveryModalOpen(true);
+                }}
+                onConfirmInStore={(tableNumber) => {
+                     setIsOrderTypeModalOpen(false);
+                     handleConfirmInStoreOrder(tableNumber);
+                }}
+                isLoading={orderStatus === 'placing'}
+            />
+
+            <DeliveryInfoModal
+                isOpen={isDeliveryModalOpen}
+                onClose={() => {
+                    setIsDeliveryModalOpen(false)
+                    if(orderStatus === 'placing') setOrderStatus('idle');
+                }}
+                onConfirm={handleConfirmDeliveryOrder}
+                isLoading={orderStatus === 'placing'}
             />
             
             {cartItemCount > 0 && orderStatus !== 'success' && (
