@@ -305,6 +305,25 @@ const DomiciliosView: React.FC<{ orders: Order[], onUpdateStatus: (id: string, s
 
 // #endregion
 
+const getFullItemPrice = (item: OrderItem): number => {
+    let fullPrice = item.price; 
+    
+    item.added.forEach(addonName => {
+        const addonProduct = MENU_DATA.find(p => p.category === Category.Adicionales && p.name === addonName);
+        if (addonProduct) {
+            fullPrice += addonProduct.price;
+        }
+    });
+
+    if (item.comboDrink) {
+        const drinkProduct = MENU_DATA.find(p => p.category === Category.Bebidas && p.name === item.comboDrink);
+        if (drinkProduct) {
+            fullPrice += drinkProduct.price;
+        }
+    }
+    return fullPrice;
+};
+
 const CashierApp: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -406,6 +425,39 @@ const CashierApp: React.FC = () => {
       setOrders(prev => [newOrder, ...prev]);
     }
   };
+
+    const handleUpdateItemQuantityInOrder = async (orderId: string, itemIndex: number, newQuantity: number) => {
+        const orderToUpdate = orders.find(o => o.id === orderId);
+        if (!orderToUpdate) return;
+
+        const updatedItems = [...orderToUpdate.items];
+        if (newQuantity <= 0) {
+            updatedItems.splice(itemIndex, 1);
+        } else {
+            updatedItems[itemIndex] = { ...updatedItems[itemIndex], quantity: newQuantity };
+        }
+
+        const newTotal = updatedItems.reduce((sum, currentItem) => {
+            return sum + (getFullItemPrice(currentItem) * currentItem.quantity);
+        }, 0);
+
+        const updatedOrderData = { items: updatedItems, total: newTotal };
+
+        setOrders(prevOrders => prevOrders.map(order => 
+            order.id === orderId ? { ...order, ...updatedOrderData } : order
+        ));
+
+        if (!orderId.startsWith('local_')) {
+            try {
+                const orderRef = doc(db, "orders", orderId);
+                await updateDoc(orderRef, updatedOrderData);
+            } catch (err) {
+                console.error("Error updating order items:", err);
+                alert("No se pudo guardar los cambios en el pedido. Revirtiendo cambios locales.");
+                setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? orderToUpdate : o));
+            }
+        }
+    };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
       if (orderId.startsWith('local_')) {
@@ -531,6 +583,9 @@ const CashierApp: React.FC = () => {
                     setSelectedOrderForActions(null);
                 }
             }}
+            onUpdateItemQuantity={(itemIndex, newQuantity) => 
+                handleUpdateItemQuantityInOrder(selectedOrderForActions.id, itemIndex, newQuantity)
+            }
         />
       )}
     </div>

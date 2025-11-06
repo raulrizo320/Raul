@@ -1,7 +1,8 @@
 import React from 'react';
-import { Order, OrderStatus } from '../types';
-import { CloseIcon, PlusIcon, CurrencyDollarIcon, TrashIcon } from './Icons';
+import { Order, OrderItem, Category } from '../types';
+import { CloseIcon, PlusIcon, CurrencyDollarIcon, TrashIcon, MinusIcon } from './Icons';
 import Timer from './Timer';
+import { MENU_DATA } from '../constants';
 
 interface TableActionsModalProps {
   order: Order | null;
@@ -9,6 +10,7 @@ interface TableActionsModalProps {
   onAddItems: () => void;
   onMarkAsCompleted: () => void;
   onCancelOrder: () => void;
+  onUpdateItemQuantity: (itemIndex: number, newQuantity: number) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -19,13 +21,33 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-const TableActionsModal: React.FC<TableActionsModalProps> = ({ order, onClose, onAddItems, onMarkAsCompleted, onCancelOrder }) => {
+const getFullItemPrice = (item: OrderItem): number => {
+    let fullPrice = item.price; 
+    
+    item.added.forEach(addonName => {
+        const addonProduct = MENU_DATA.find(p => p.category === Category.Adicionales && p.name === addonName);
+        if (addonProduct) {
+            fullPrice += addonProduct.price;
+        }
+    });
+
+    if (item.comboDrink) {
+        const drinkProduct = MENU_DATA.find(p => p.category === Category.Bebidas && p.name === item.comboDrink);
+        if (drinkProduct) {
+            fullPrice += drinkProduct.price;
+        }
+    }
+    return fullPrice;
+};
+
+
+const TableActionsModal: React.FC<TableActionsModalProps> = ({ order, onClose, onAddItems, onMarkAsCompleted, onCancelOrder, onUpdateItemQuantity }) => {
   if (!order) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-brand-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col animate-fade-in-up" onClick={e => e.stopPropagation()}>
-        <div className="p-6 border-b border-brand-dark flex justify-between items-center">
+      <div className="bg-brand-surface rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-fade-in-up" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-brand-dark flex justify-between items-center flex-shrink-0">
             <div>
                 <h2 className="text-2xl font-display font-extrabold text-brand-light">Gestionar Mesa {order.tableNumber}</h2>
                 <p className="text-brand-gray">Pedido #{order.id.substring(0, 5).toUpperCase()}</p>
@@ -34,8 +56,9 @@ const TableActionsModal: React.FC<TableActionsModalProps> = ({ order, onClose, o
                 <CloseIcon className="w-8 h-8" />
             </button>
         </div>
-        <div className="p-6">
-            <div className="bg-brand-dark rounded-lg p-4 mb-6 flex justify-between items-center">
+
+        <div className="p-6 flex-grow overflow-y-auto">
+            <div className="bg-brand-dark rounded-lg p-4 mb-4 flex justify-between items-center">
                 <div>
                     <span className="text-sm text-brand-gray">Total Actual</span>
                     <p className="text-3xl font-bold text-brand-orange">{formatCurrency(order.total)}</p>
@@ -45,46 +68,59 @@ const TableActionsModal: React.FC<TableActionsModalProps> = ({ order, onClose, o
                     <Timer startTime={order.createdAt} />
                 </div>
             </div>
-            
-            <div className="space-y-4">
-                <button
-                    onClick={onAddItems}
-                    className="w-full flex items-center gap-4 text-left p-4 bg-brand-dark rounded-lg hover:bg-black/40 transition-colors"
-                >
-                    <PlusIcon className="w-8 h-8 text-brand-orange flex-shrink-0" />
-                    <div>
-                        <span className="font-bold text-lg text-brand-light">Agregar al Pedido</span>
-                        <p className="text-sm text-brand-gray">Añadir más productos a esta mesa.</p>
+
+            <h4 className="font-bold text-lg text-brand-orange mb-2">Resumen del Pedido</h4>
+             <div className="space-y-1 divide-y divide-brand-dark/50">
+                {order.items.length > 0 ? order.items.map((item, index) => (
+                    <div key={index} className="flex items-start gap-3 pt-3">
+                        <div className="flex-grow">
+                            <p className="font-semibold text-brand-light">{item.productName}</p>
+                            <div className="text-xs text-brand-gray mt-1 pl-2 border-l-2 border-brand-dark/50">
+                                <div>{item.variant}</div>
+                                {item.comboDrink && <div>+ Bebida: {item.comboDrink}</div>}
+                                {item.added.map(name => <div key={name}>+ {name}</div>)}
+                                {item.removed.map(name => <div key={name}>- Sin {name}</div>)}
+                                {item.notes && <div className="italic">"{item.notes}"</div>}
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2 ml-2">
+                            <div className="font-bold text-brand-light text-sm whitespace-nowrap">{formatCurrency(getFullItemPrice(item) * item.quantity)}</div>
+                             <div className="flex items-center bg-brand-dark rounded-full">
+                                <button onClick={() => onUpdateItemQuantity(index, item.quantity - 1)} className="p-1 text-brand-gray hover:text-brand-orange"><MinusIcon className="w-5 h-5"/></button>
+                                <span className="px-2 font-bold text-sm text-brand-light">{item.quantity}</span>
+                                <button onClick={() => onUpdateItemQuantity(index, item.quantity + 1)} className="p-1 text-brand-gray hover:text-brand-orange"><PlusIcon className="w-5 h-5"/></button>
+                            </div>
+                        </div>
                     </div>
-                </button>
-                <button
-                    onClick={onMarkAsCompleted}
-                    className="w-full flex items-center gap-4 text-left p-4 bg-brand-dark rounded-lg hover:bg-black/40 transition-colors"
-                >
-                    <CurrencyDollarIcon className="w-8 h-8 text-green-400 flex-shrink-0" />
-                    <div>
-                        <span className="font-bold text-lg text-brand-light">Pagar y Entregar</span>
-                        <p className="text-sm text-brand-gray">Finalizar el pedido y liberar la mesa.</p>
-                    </div>
-                </button>
-                 <button
-                    onClick={onCancelOrder}
-                    className="w-full flex items-center gap-4 text-left p-4 bg-brand-dark rounded-lg hover:bg-black/40 transition-colors"
-                >
-                    <TrashIcon className="w-8 h-8 text-red-400 flex-shrink-0" />
-                    <div>
-                        <span className="font-bold text-lg text-brand-light">Cancelar Pedido</span>
-                        <p className="text-sm text-brand-gray">Anula el pedido y libera la mesa.</p>
-                    </div>
-                </button>
+                )) : (
+                    <p className="text-brand-gray text-center py-4">No hay productos en este pedido aún.</p>
+                )}
             </div>
         </div>
-         <div className="p-6 mt-auto bg-brand-dark/50 border-t border-black/50">
+
+        <div className="p-6 mt-auto bg-brand-dark/50 border-t border-black/50 flex-shrink-0">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+                <button
+                    onClick={onAddItems}
+                    className="w-full flex items-center justify-center gap-2 p-3 bg-brand-dark rounded-lg hover:bg-black/40 transition-colors"
+                >
+                    <PlusIcon className="w-6 h-6 text-brand-orange" />
+                    <span className="font-bold text-base text-brand-light">Agregar</span>
+                </button>
+                <button
+                    onClick={onCancelOrder}
+                    className="w-full flex items-center justify-center gap-2 p-3 bg-brand-dark rounded-lg hover:bg-black/40 transition-colors"
+                >
+                    <TrashIcon className="w-6 h-6 text-red-400" />
+                    <span className="font-bold text-base text-brand-light">Cancelar</span>
+                </button>
+            </div>
             <button
-                onClick={onClose}
-                className="w-full py-3 px-6 bg-brand-surface text-brand-light font-bold rounded-xl hover:bg-opacity-80 transition-colors duration-300"
+                onClick={onMarkAsCompleted}
+                className="w-full flex items-center justify-center gap-3 p-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors"
             >
-                Cerrar
+                <CurrencyDollarIcon className="w-7 h-7" />
+                <span className="font-bold text-lg">Pagar y Liberar Mesa</span>
             </button>
         </div>
       </div>
